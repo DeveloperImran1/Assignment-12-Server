@@ -84,6 +84,22 @@ async function run() {
             res.send(result)
         })
 
+        // get specific user all wishlist
+        app.get('/myWishLists/:email', async (req, res) => {
+            const email = req.params.email;
+            const query = { userEmail: email };
+            const result = await wishListCollection.find(query).toArray();
+            res.send(result)
+        })
+
+        // get all wishlist length specific user 
+        app.get('/myTotalWishLists/:email', async (req, res) => {
+            const email = req.params.email;
+            const query = { email: email };
+            const result = await wishListCollection.estimatedDocumentCount(query);
+            res.send({ result })
+        })
+
         // get all tourGuides data
         app.get('/tourGuides', async (req, res) => {
             const result = await tourGuidesCollection.find().toArray();
@@ -114,6 +130,22 @@ async function run() {
             res.send(result)
         })
 
+        // get specific user all booking
+        app.get('/myBookings/:email', async (req, res) => {
+            const email = req.params.email;
+            const query = { email: email };
+            const result = await packageBookingCollection.find(query).toArray();
+            res.send(result)
+        })
+
+        // get all booking length specific user 
+        app.get('/myTotalBookings/:email', async (req, res) => {
+            const email = req.params.email;
+            const query = { email: email };
+            const result = await packageBookingCollection.estimatedDocumentCount(query);
+            res.send({ result })
+        })
+
         // newUserAdd DB
         app.post('/users', async (req, res) => {
             const userInfo = req.body;
@@ -127,12 +159,44 @@ async function run() {
             res.send(result)
         })
 
-        // fixed kono user er role get korbo
-        app.get('/userRole/:email', async(req, res)=> {
+
+
+        // When user request become a tourGuide
+        app.patch('/updateUser/:email', async (req, res) => {
             const email = req.params.email;
-            const query= {userEmail: email}
+            const updateInfo = req.body;
+
+            // if status === pending . tahole return now
+            const filter = { userEmail: email }
+            const find = await usersCollection.findOne(filter);
+            if(find?.userStatus === "Pending" && find?.userRole === "Tourist"){
+                return res.send({message: "Already Pending Your Request", updatedDoc: null})
+            }
+
+            const options = { upsert: true };
+
+            const query = { userEmail: email };
+            const updatedDoc = {
+                $set: {
+                    userStatus: "Pending",
+                    phoneNumber: '43243',
+                    education: 'gdf',
+                    skills: 'sfdsfsf',
+                    age: '543',
+                    experience: 'dfgd',
+                    timestamp: Date.now()
+                }
+            }
+            const result = await usersCollection.updateOne(query, updatedDoc, options);
+            res.send(result)
+        })
+
+        // fixed kono user er role get korbo
+        app.get('/userRole/:email', async (req, res) => {
+            const email = req.params.email;
+            const query = { userEmail: email }
             const options = {
-                projection: {_id: 0, userRole: 1}
+                projection: { _id: 0, userRole: 1 }
             }
             const result = await usersCollection.findOne(query, options)
             res.send(result)
