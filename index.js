@@ -100,28 +100,7 @@ async function run() {
             res.send({ result })
         })
 
-        // get all tourGuides data
-        app.get('/tourGuides', async (req, res) => {
-            const result = await tourGuidesCollection.find().toArray();
-            res.send(result)
-        })
 
-        // get specific tourGuides data with id
-        app.get('/tourGuide/:id', async (req, res) => {
-            const id = req.params.id;
-            const query = { _id: new ObjectId(id) }
-            const result = await tourGuidesCollection.findOne(query);
-            res.send(result)
-        })
-
-        // get just tour guide name
-        app.get('/tourGuidesName', async (req, res) => {
-            const options = {
-                projection: { _id: 0, name: 1 }
-            }
-            const result = await tourGuidesCollection.find({}, options).toArray()
-            res.send(result)
-        })
 
         // post packageBookin Info in db
         app.post('/packageBooking', async (req, res) => {
@@ -169,8 +148,8 @@ async function run() {
             // if status === pending . tahole return now
             const filter = { userEmail: email }
             const find = await usersCollection.findOne(filter);
-            if(find?.userStatus === "Pending" && find?.userRole === "Tourist"){
-                return res.send({message: "Already Pending Your Request", updatedDoc: null})
+            if (find?.userStatus === "Pending" && find?.userRole === "Tourist") {
+                return res.send({ message: "Already Pending Your Request", updatedDoc: null })
             }
 
             const options = { upsert: true };
@@ -199,6 +178,30 @@ async function run() {
                 projection: { _id: 0, userRole: 1 }
             }
             const result = await usersCollection.findOne(query, options)
+            res.send(result)
+        })
+
+        // get all tourGuides data
+        app.get('/tourGuides', async (req, res) => {
+            const query = { userRole: "Tourist" }
+            const result = await usersCollection.find(query).toArray();
+            res.send(result)
+        })
+
+        // get specific tourGuides data with id
+        app.get('/user/:email', async (req, res) => {
+            const email = req.params.email;
+            const query = { userEmail: email }
+            const result = await usersCollection.findOne(query);
+            res.send(result)
+        })
+
+        // get just tour guide name
+        app.get('/tourGuidesName', async (req, res) => {
+            const options = {
+                projection: { _id: 0, userName: 1 }
+            }
+            const result = await usersCollection.find({}, options).toArray()
             res.send(result)
         })
 
