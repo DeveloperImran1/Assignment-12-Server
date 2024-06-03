@@ -59,7 +59,6 @@ async function run() {
 
         const spotsCollection = client.db("tourism").collection('touristSpots');
         const wishListCollection = client.db("tourism").collection('wishlist');
-        const tourGuidesCollection = client.db("tourism").collection('tourGuides');
         const packageBookingCollection = client.db("tourism").collection('packageBooking');
         const usersCollection = client.db("tourism").collection('users');
 
@@ -95,8 +94,8 @@ async function run() {
         // get all wishlist length specific user 
         app.get('/myTotalWishLists/:email', async (req, res) => {
             const email = req.params.email;
-            const query = { email: email };
-            const result = await wishListCollection.estimatedDocumentCount(query);
+            const query = { userEmail: email };
+            const result = await wishListCollection.countDocuments(query);
             res.send({ result })
         })
 
@@ -121,7 +120,7 @@ async function run() {
         app.get('/myTotalBookings/:email', async (req, res) => {
             const email = req.params.email;
             const query = { email: email };
-            const result = await packageBookingCollection.estimatedDocumentCount(query);
+            const result = await packageBookingCollection.countDocuments(query);
             res.send({ result })
         })
 
@@ -183,7 +182,7 @@ async function run() {
 
         // get all tourGuides data
         app.get('/tourGuides', async (req, res) => {
-            const query = { userRole: "Tourist" }
+            const query = { userRole: "tourGuide" }
             const result = await usersCollection.find(query).toArray();
             res.send(result)
         })
