@@ -107,7 +107,13 @@ async function run() {
             res.send({ result })
         })
 
-
+      // deleteOne wishlist collection with id
+        app.delete('/deleteWishList/:id', async(req, res)=> {
+            const id = req.params.id;
+            const query = {_id: new ObjectId(id)};
+            const result = await wishListCollection.deleteOne(query);
+            res.send(result)
+        })
 
         // post packageBookin Info in db
         app.post('/packageBooking', async (req, res) => {
@@ -115,6 +121,30 @@ async function run() {
             const result = await packageBookingCollection.insertOne(bookingInfo);
             res.send(result)
         })
+
+        // packageBooking er bookingStatus update koro when tour guide action
+        app.patch('/updatePackageBooking/:id', async(req, res)=> {
+            const id = req.params.id;
+            const {status} = req.body;
+            console.log(status)
+            const query = {_id: new ObjectId(id)};
+            const updatedDoc = {
+                $set: {
+                    bookingStatus: status
+                }
+            }
+            const result = await packageBookingCollection.updateOne(query, updatedDoc)
+            res.send(result)
+        })
+
+        // deleteOne packageBooking collection with id
+        app.delete('/deletePackageBooking/:id', async(req, res)=> {
+            const id = req.params.id;
+            const query = {_id: new ObjectId(id)};
+            const result = await packageBookingCollection.deleteOne(query);
+            res.send(result)
+        })
+
 
         // get all booking data a tourGuide email
         app.get('/requestedTourGuide/:email', async (req, res) => {
