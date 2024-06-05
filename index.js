@@ -62,6 +62,13 @@ async function run() {
         const packageBookingCollection = client.db("tourism").collection('packageBooking');
         const usersCollection = client.db("tourism").collection('users');
 
+        // Post Spot in db
+        app.post('/spots', async (req, res) => {
+            const package = req.body;
+            const result = await spotsCollection.insertOne(package)
+            res.send(result)
+        })
+
         // get all spots in db
         app.get('/spots', async (req, res) => {
             const result = await spotsCollection.find().toArray()
@@ -170,6 +177,26 @@ async function run() {
             res.send({ result })
         })
 
+        // get all tourist length 
+        app.get('/allTouristLen', async (req, res) => {
+            const query = { userRole: "Tourist" };
+            const result = await usersCollection.countDocuments(query);
+            res.send({ result })
+        })
+
+        // get all tour guides length 
+        app.get('/allTourGuideLen', async (req, res) => {
+            const query = { userRole: "tourGuide" };
+            const result = await usersCollection.countDocuments(query);
+            res.send({ result })
+        })
+
+        // get all tour Package length 
+        app.get('/allTourPackageLen', async (req, res) => {
+            const result = await spotsCollection.countDocuments();
+            res.send({ result })
+        })
+
         // newUserAdd DB
         app.post('/users', async (req, res) => {
             const userInfo = req.body;
@@ -184,6 +211,29 @@ async function run() {
         })
 
 
+        // get all tourGuides data
+        app.get('/users', async (req, res) => {
+            const filterRole = req.query.filterValue;
+            const searchValue = req.query.searchValue;
+            console.log(filterRole, searchValue)
+            let query = {};
+            if(filterRole){
+                query.userRole = filterRole
+            }
+            if(searchValue){
+                query.userName = {$regex: searchValue, $options: 'i'}
+            }
+            // const query = {
+            //     userRole: filterRole,
+            //     userName: {$regex: searchValue, $options: 'i'}
+            // }
+            // if(!filterRole || !searchValue){
+            //     const result = await usersCollection.find().toArray();
+            //    return res.send(result)
+            // }
+            const result = await usersCollection.find(query).toArray();
+            res.send(result)
+        })
 
         // When user request become a tourGuide
         app.patch('/updateUser/:email', async (req, res) => {
@@ -207,6 +257,24 @@ async function run() {
                 }
             }
             const result = await usersCollection.updateOne(query, updatedDoc, options);
+            res.send(result)
+        })
+
+        // Just admin change now any user status and role
+        app.patch('/updateUserRole/:email', async(req, res)=> {
+            const email = req.params.email;
+            const {updateRole} = req.body;
+            console.log(email, updateRole)
+            const query = {userEmail: email};
+            const options = {upsert: true};
+            const updatedDoc = {
+                $set: {
+                    userStatus: "Verified",
+                    userRole: updateRole,
+                    timestamp: Date.now()
+                }
+            }
+            const result = await usersCollection.updateOne(query, updatedDoc, options)
             res.send(result)
         })
 
@@ -246,7 +314,8 @@ async function run() {
             res.send(result)
         })
 
-        // get specific tourGuides data with id
+
+        // get specific user data with id
         app.get('/user/:email', async (req, res) => {
             const email = req.params.email;
             const query = { userEmail: email }
