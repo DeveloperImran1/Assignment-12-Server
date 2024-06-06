@@ -78,7 +78,7 @@ async function run() {
         // get specific type spots in db
         app.get('/spots/:tourType', async (req, res) => {
             const tourType = req.params.tourType;
-            const query = {tourType: tourType}
+            const query = { tourType: tourType }
             const result = await spotsCollection.find(query).toArray()
             res.send(result)
         })
@@ -88,6 +88,43 @@ async function run() {
             const id = req.params.id;
             const query = { _id: new ObjectId(id) };
             const result = await spotsCollection.findOne(query);
+            res.send(result)
+        })
+        // ------------- demo
+        // app.get('/users', async (req, res) => {
+        //     const filterRole = req.query.filterValue;
+        //     const searchValue = req.query.searchValue;
+        //     console.log(filterRole, searchValue)
+        //     let query = {};
+        //     if(filterRole){
+        //         query.userRole = filterRole
+        //     }
+        //     if(searchValue){
+        //         query.userName = {$regex: searchValue, $options: 'i'}
+        //     }
+
+        //     const result = await usersCollection.find(query).toArray();
+        //     res.send(result)
+        // })
+
+        //---------demo
+
+        // get spots with search, filter, sorting price range
+        app.get('/allSpots', async (req, res) => {
+            const category = req.query.category;
+            const minimumPrice = parseInt(req.query.minimumPrice);
+            const maximumPrice = parseInt(req.query.maximumPrice);
+            console.log(category, minimumPrice, maximumPrice)
+            
+            let query = {};
+            if(category){
+                query.tourType = category;
+            }
+            if(minimumPrice && maximumPrice){
+                query.price = {$gt: minimumPrice, $lt: maximumPrice}
+            }
+
+            const result = await spotsCollection.find(query).toArray();
             res.send(result)
         })
 
@@ -114,10 +151,10 @@ async function run() {
             res.send({ result })
         })
 
-      // deleteOne wishlist collection with id
-        app.delete('/deleteWishList/:id', async(req, res)=> {
+        // deleteOne wishlist collection with id
+        app.delete('/deleteWishList/:id', async (req, res) => {
             const id = req.params.id;
-            const query = {_id: new ObjectId(id)};
+            const query = { _id: new ObjectId(id) };
             const result = await wishListCollection.deleteOne(query);
             res.send(result)
         })
@@ -130,11 +167,11 @@ async function run() {
         })
 
         // packageBooking er bookingStatus update koro when tour guide action
-        app.patch('/updatePackageBooking/:id', async(req, res)=> {
+        app.patch('/updatePackageBooking/:id', async (req, res) => {
             const id = req.params.id;
-            const {status} = req.body;
+            const { status } = req.body;
             console.log(status)
-            const query = {_id: new ObjectId(id)};
+            const query = { _id: new ObjectId(id) };
             const updatedDoc = {
                 $set: {
                     bookingStatus: status
@@ -145,9 +182,9 @@ async function run() {
         })
 
         // deleteOne packageBooking collection with id
-        app.delete('/deletePackageBooking/:id', async(req, res)=> {
+        app.delete('/deletePackageBooking/:id', async (req, res) => {
             const id = req.params.id;
-            const query = {_id: new ObjectId(id)};
+            const query = { _id: new ObjectId(id) };
             const result = await packageBookingCollection.deleteOne(query);
             res.send(result)
         })
@@ -156,7 +193,7 @@ async function run() {
         // get all booking data a tourGuide email
         app.get('/requestedTourGuide/:email', async (req, res) => {
             const email = req.params.email;
-            const query = {guideEmail: email}
+            const query = { guideEmail: email }
             const result = await packageBookingCollection.find(query).toArray();
             res.send(result)
         })
@@ -217,20 +254,13 @@ async function run() {
             const searchValue = req.query.searchValue;
             console.log(filterRole, searchValue)
             let query = {};
-            if(filterRole){
+            if (filterRole) {
                 query.userRole = filterRole
             }
-            if(searchValue){
-                query.userName = {$regex: searchValue, $options: 'i'}
+            if (searchValue) {
+                query.userName = { $regex: searchValue, $options: 'i' }
             }
-            // const query = {
-            //     userRole: filterRole,
-            //     userName: {$regex: searchValue, $options: 'i'}
-            // }
-            // if(!filterRole || !searchValue){
-            //     const result = await usersCollection.find().toArray();
-            //    return res.send(result)
-            // }
+
             const result = await usersCollection.find(query).toArray();
             res.send(result)
         })
@@ -261,12 +291,12 @@ async function run() {
         })
 
         // Just admin change now any user status and role
-        app.patch('/updateUserRole/:email', async(req, res)=> {
+        app.patch('/updateUserRole/:email', async (req, res) => {
             const email = req.params.email;
-            const {updateRole} = req.body;
+            const { updateRole } = req.body;
             console.log(email, updateRole)
-            const query = {userEmail: email};
-            const options = {upsert: true};
+            const query = { userEmail: email };
+            const options = { upsert: true };
             const updatedDoc = {
                 $set: {
                     userStatus: "Verified",
@@ -279,11 +309,11 @@ async function run() {
         })
 
         // review add usersCollection review array
-        app.patch('/review/:email', async(req, res)=> {
+        app.patch('/review/:email', async (req, res) => {
             const email = req.params.email;
             const review = req.body;
             // console.log(email, review)
-            const query = {userEmail: email};
+            const query = { userEmail: email };
             const result = await usersCollection.findOne(query);
             const reviews = result?.reviews;
             reviews.push(review)
