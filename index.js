@@ -61,6 +61,7 @@ async function run() {
         const wishListCollection = client.db("tourism").collection('wishlist');
         const packageBookingCollection = client.db("tourism").collection('packageBooking');
         const usersCollection = client.db("tourism").collection('users');
+        const blogsCollection = client.db("tourism").collection('blogsData');
 
         // Post Spot in db
         app.post('/spots', async (req, res) => {
@@ -112,9 +113,9 @@ async function run() {
         // get spots with search, filter, sorting price range
         app.get('/allSpots', async (req, res) => {
             const category = req.query.category;
+            const search = req.query.search;
             const minimumPrice = parseInt(req.query.minimumPrice);
             const maximumPrice = parseInt(req.query.maximumPrice);
-            console.log(category, minimumPrice, maximumPrice)
             
             let query = {};
             if(category){
@@ -122,6 +123,12 @@ async function run() {
             }
             if(minimumPrice && maximumPrice){
                 query.price = {$gt: minimumPrice, $lt: maximumPrice}
+            }
+            if(search){
+                query.$or = [
+                    {tripName: {$regex: search, $options: 'i'}},
+                    {tripTitle: {$regex: search, $options: 'i'}}
+                ]
             }
 
             const result = await spotsCollection.find(query).toArray();
@@ -362,6 +369,20 @@ async function run() {
             res.send(result)
         })
 
+
+        // bloger er all data get
+        app.get('/blogs', async(req, res)=> {
+            const result = await blogsCollection.find().toArray();
+            res.send(result)
+        })
+
+        //  get specific blog data with id
+        app.get('/blog/:id', async(req, res)=> {
+            const id = req.params.id;
+            const query = {_id: new ObjectId(id)};
+            const result = await blogsCollection.findOne(query)
+            res.send(result)
+        })
 
         console.log("Pinged your deployment. You successfully connected to MongoDB!");
     } finally {
