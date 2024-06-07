@@ -372,7 +372,23 @@ async function run() {
 
         // bloger er all data get
         app.get('/blogs', async(req, res)=> {
-            const result = await blogsCollection.find().toArray();
+            const search = req.query.search;
+            let query = {};
+            if(search){
+                query.$or = [
+                    {title: {$regex: search, $options: 'i'}},
+                    {content: {$regex: search, $options: 'i'}},
+                    {userName: {$regex: search, $options: 'i'}},
+                ]
+            }
+            const result = await blogsCollection.find(query).toArray();
+            res.send(result)
+        })
+
+        // bloger er 1st data get
+        app.get('/blogsFirst', async(req, res)=> {
+         
+            const result = await blogsCollection.findOne();
             res.send(result)
         })
 
@@ -382,6 +398,25 @@ async function run() {
             const query = {_id: new ObjectId(id)};
             const result = await blogsCollection.findOne(query)
             res.send(result)
+        })
+
+        // blog a comment add korbo
+        app.patch('/blogsComment/:id', async(req, res)=> {
+            const id = req.params.id;
+            const commentInfo = req.body;
+          
+            const query = {_id: new ObjectId(id)};
+            const commentsData = await blogsCollection.findOne(query);
+            const comments = commentsData?.comments;
+            comments.push(commentInfo)
+          
+            const updatedDoc = {
+                $set: {
+                    comments: comments
+                }
+            }
+            const updateResult = await blogsCollection.updateOne(query, updatedDoc)
+            res.send(updateResult)
         })
 
         console.log("Pinged your deployment. You successfully connected to MongoDB!");
