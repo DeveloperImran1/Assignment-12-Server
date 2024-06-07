@@ -62,6 +62,7 @@ async function run() {
         const packageBookingCollection = client.db("tourism").collection('packageBooking');
         const usersCollection = client.db("tourism").collection('users');
         const blogsCollection = client.db("tourism").collection('blogsData');
+        const storyCollection = client.db("tourism").collection('story');
 
         // Post Spot in db
         app.post('/spots', async (req, res) => {
@@ -360,6 +361,8 @@ async function run() {
             res.send(result)
         })
 
+    
+
         // get just tour guide name
         app.get('/tourGuidesName', async (req, res) => {
             const options = {
@@ -417,6 +420,14 @@ async function run() {
             }
             const updateResult = await blogsCollection.updateOne(query, updatedDoc)
             res.send(updateResult)
+        })
+
+
+        // story section start
+        // get all story 
+        app.get("/storys", async(req, res)=> {
+            const result = await storyCollection.find().toArray();
+            res.send(result)
         })
 
         console.log("Pinged your deployment. You successfully connected to MongoDB!");
