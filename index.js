@@ -63,6 +63,7 @@ async function run() {
         const usersCollection = client.db("tourism").collection('users');
         const blogsCollection = client.db("tourism").collection('blogsData');
         const storyCollection = client.db("tourism").collection('story');
+        const cardStoryCollection = client.db("tourism").collection('cardStory');
 
         // Post Spot in db
         app.post('/spots', async (req, res) => {
@@ -424,11 +425,53 @@ async function run() {
 
 
         // story section start
+        // post story 
+        app.post('/storys', async(req, res)=> {
+            const storyInfo = req.body;
+            const result = await storyCollection.insertOne(storyInfo);
+            res.send(result)
+        })
         // get all story 
         app.get("/storys", async(req, res)=> {
             const result = await storyCollection.find().toArray();
             res.send(result)
         })
+
+        // delte a post 
+        app.delete('/deletePost/:id', async(req, res)=> {
+            const id = req.params.id;
+            const query = {_id: new ObjectId(id)};
+            const result = await storyCollection.deleteOne(query);
+            res.send(result)
+        })
+
+         // story a comment add korbo
+         app.patch('/storyComment/:id', async(req, res)=> {
+            const id = req.params.id;
+            const commentInfo = req.body;
+          
+            const query = {_id: new ObjectId(id)};
+            const commentsData = await storyCollection.findOne(query);
+            const comments = commentsData?.comments;
+            comments.push(commentInfo)
+          
+            const updatedDoc = {
+                $set: {
+                    comments: comments
+                }
+            }
+            const updateResult = await storyCollection.updateOne(query, updatedDoc)
+            res.send(updateResult)
+        })
+
+
+        // small cardStoryCollection er data get korbo
+          app.get("/cardStorys", async(req, res)=> {
+            const result = await cardStoryCollection.find().toArray();
+            res.send(result)
+        })
+
+
 
         console.log("Pinged your deployment. You successfully connected to MongoDB!");
     } finally {
