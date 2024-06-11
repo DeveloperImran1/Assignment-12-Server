@@ -3,6 +3,7 @@ const express = require("express");
 const cors = require("cors");
 const app = express();
 const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
+const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY)
 const port = process.env.PORT || 5000;
 const jwt = require('jsonwebtoken');
 
@@ -39,8 +40,8 @@ async function run() {
         })
 
         // Middleware
-        const verifyToken = (req, res, next) => {
-            console.log("Inside verify token: --", req.headers.authorization);
+        const verifyToken = async (req, res, next) => {
+            // console.log("Inside verify token: --", req.headers.authorization);
             if (!req.headers.authorization) {
                 return res.status(401).send({ message: "unauthorized access" });
             }
@@ -57,6 +58,35 @@ async function run() {
         }
 
 
+        // use verify admin after verify token
+        const verifyAdmin = async (req, res, next)=> {
+            const email = req.decoded.email;
+            console.log(email)
+            const query = {userEmail: email};
+            const user = await usersCollection.findOne(query);
+            console.log(user)
+            const isAdmin = user?.userRole === "Admin"
+            if(!isAdmin){
+                return res.status(403).send({message: 'forbidden access'})
+            }
+            next()
+        }
+
+        // use verify tour Guide after verify token
+        const verifyTourGuide = async (req, res, next)=> {
+            const email = req.decoded.email;
+            console.log(email)
+            const query = {userEmail: email};
+            const user = await usersCollection.findOne(query);
+            console.log(user)
+            const isTourGuide = user?.userRole === "tourGuide"
+            if(!isTourGuide){
+                return res.status(403).send({message: 'forbidden access'})
+            }
+            next()
+        }
+
+
         const spotsCollection = client.db("tourism").collection('touristSpots');
         const wishListCollection = client.db("tourism").collection('wishlist');
         const packageBookingCollection = client.db("tourism").collection('packageBooking');
@@ -64,9 +94,11 @@ async function run() {
         const blogsCollection = client.db("tourism").collection('blogsData');
         const storyCollection = client.db("tourism").collection('story');
         const cardStoryCollection = client.db("tourism").collection('cardStory');
+        const paymentCollection = client.db('tourism').collection('payment');
+        const notificationCollection = client.db('tourism').collection('notification');
 
         // Post Spot in db
-        app.post('/spots', async (req, res) => {
+        app.post('/spots', verifyAdmin, async (req, res) => {
             const package = req.body;
             const result = await spotsCollection.insertOne(package)
             res.send(result)
@@ -93,24 +125,7 @@ async function run() {
             const result = await spotsCollection.findOne(query);
             res.send(result)
         })
-        // ------------- demo
-        // app.get('/users', async (req, res) => {
-        //     const filterRole = req.query.filterValue;
-        //     const searchValue = req.query.searchValue;
-        //     console.log(filterRole, searchValue)
-        //     let query = {};
-        //     if(filterRole){
-        //         query.userRole = filterRole
-        //     }
-        //     if(searchValue){
-        //         query.userName = {$regex: searchValue, $options: 'i'}
-        //     }
-
-        //     const result = await usersCollection.find(query).toArray();
-        //     res.send(result)
-        // })
-
-        //---------demo
+ 
 
         // get spots with search, filter, sorting price range
         app.get('/allSpots', async (req, res) => {
@@ -118,18 +133,18 @@ async function run() {
             const search = req.query.search;
             const minimumPrice = parseInt(req.query.minimumPrice);
             const maximumPrice = parseInt(req.query.maximumPrice);
-            
+
             let query = {};
-            if(category){
+            if (category) {
                 query.tourType = category;
             }
-            if(minimumPrice && maximumPrice){
-                query.price = {$gt: minimumPrice, $lt: maximumPrice}
+            if (minimumPrice && maximumPrice) {
+                query.price = { $gt: minimumPrice, $lt: maximumPrice }
             }
-            if(search){
+            if (search) {
                 query.$or = [
-                    {tripName: {$regex: search, $options: 'i'}},
-                    {tripTitle: {$regex: search, $options: 'i'}}
+                    { tripName: { $regex: search, $options: 'i' } },
+                    { tripTitle: { $regex: search, $options: 'i' } }
                 ]
             }
 
@@ -138,14 +153,14 @@ async function run() {
         })
 
         // add wishlist in DB
-        app.post('/wishlist', async (req, res) => {
+        app.post('/wishlist', verifyToken, async (req, res) => {
             const spot = req.body;
             const result = await wishListCollection.insertOne(spot);
             res.send(result)
         })
 
         // get specific user all wishlist
-        app.get('/myWishLists/:email', async (req, res) => {
+        app.get('/myWishLists/:email', verifyToken, async (req, res) => {
             const email = req.params.email;
             const query = { userEmail: email };
             const result = await wishListCollection.find(query).toArray();
@@ -153,7 +168,7 @@ async function run() {
         })
 
         // get all wishlist length specific user 
-        app.get('/myTotalWishLists/:email', async (req, res) => {
+        app.get('/myTotalWishLists/:email', verifyToken, async (req, res) => {
             const email = req.params.email;
             const query = { userEmail: email };
             const result = await wishListCollection.countDocuments(query);
@@ -161,7 +176,7 @@ async function run() {
         })
 
         // deleteOne wishlist collection with id
-        app.delete('/deleteWishList/:id', async (req, res) => {
+        app.delete('/deleteWishList/:id', verifyToken, async (req, res) => {
             const id = req.params.id;
             const query = { _id: new ObjectId(id) };
             const result = await wishListCollection.deleteOne(query);
@@ -169,14 +184,36 @@ async function run() {
         })
 
         // post packageBookin Info in db
-        app.post('/packageBooking', async (req, res) => {
+        app.post('/packageBooking', verifyToken, async (req, res) => {
             const bookingInfo = req.body;
             const result = await packageBookingCollection.insertOne(bookingInfo);
+
+            console.log(bookingInfo.email)
+            // user er email dia total booking length up korbo
+            const query = { userEmail: bookingInfo.email }
+            const options ={ upsert: true}
+            let totalBooking = 1;
+            const currentUser = await usersCollection.findOne(query)
+            console.log(currentUser)
+            if (currentUser?.totalBooking) {
+                console.log('total booking property ase')
+                totalBooking = totalBooking + currentUser?.totalBooking
+            }
+            const updatedDoc = {
+                $set: {
+                    totalBooking
+
+                }
+            }
+            const updateResult = await usersCollection.updateOne(query, updatedDoc, options)
+            console.log("Updated Result", updateResult)
+
             res.send(result)
+
         })
 
         // packageBooking er bookingStatus update koro when tour guide action
-        app.patch('/updatePackageBooking/:id', async (req, res) => {
+        app.patch('/updatePackageBooking/:id', verifyToken, async (req, res) => {
             const id = req.params.id;
             const { status } = req.body;
             console.log(status)
@@ -191,7 +228,7 @@ async function run() {
         })
 
         // deleteOne packageBooking collection with id
-        app.delete('/deletePackageBooking/:id', async (req, res) => {
+        app.delete('/deletePackageBooking/:id', verifyToken, async (req, res) => {
             const id = req.params.id;
             const query = { _id: new ObjectId(id) };
             const result = await packageBookingCollection.deleteOne(query);
@@ -200,7 +237,7 @@ async function run() {
 
 
         // get all booking data a tourGuide email
-        app.get('/requestedTourGuide/:email', async (req, res) => {
+        app.get('/requestedTourGuide/:email', verifyToken, async (req, res) => {
             const email = req.params.email;
             const query = { guideEmail: email }
             const result = await packageBookingCollection.find(query).toArray();
@@ -208,7 +245,7 @@ async function run() {
         })
 
         // get specific user all booking
-        app.get('/myBookings/:email', async (req, res) => {
+        app.get('/myBookings/:email', verifyToken, async (req, res) => {
             const email = req.params.email;
             const query = { email: email };
             const result = await packageBookingCollection.find(query).toArray();
@@ -216,7 +253,7 @@ async function run() {
         })
 
         // get all booking length specific user 
-        app.get('/myTotalBookings/:email', async (req, res) => {
+        app.get('/myTotalBookings/:email',verifyToken, async (req, res) => {
             const email = req.params.email;
             const query = { email: email };
             const result = await packageBookingCollection.countDocuments(query);
@@ -224,21 +261,21 @@ async function run() {
         })
 
         // get all tourist length 
-        app.get('/allTouristLen', async (req, res) => {
+        app.get('/allTouristLen', verifyToken, verifyAdmin,  async (req, res) => {
             const query = { userRole: "Tourist" };
             const result = await usersCollection.countDocuments(query);
             res.send({ result })
         })
 
         // get all tour guides length 
-        app.get('/allTourGuideLen', async (req, res) => {
+        app.get('/allTourGuideLen', verifyToken, verifyAdmin, async (req, res) => {
             const query = { userRole: "tourGuide" };
             const result = await usersCollection.countDocuments(query);
             res.send({ result })
         })
 
         // get all tour Package length 
-        app.get('/allTourPackageLen', async (req, res) => {
+        app.get('/allTourPackageLen', verifyToken, verifyAdmin, async (req, res) => {
             const result = await spotsCollection.countDocuments();
             res.send({ result })
         })
@@ -275,7 +312,7 @@ async function run() {
         })
 
         // When user request become a tourGuide
-        app.patch('/updateUser/:email', async (req, res) => {
+        app.patch('/updateUser/:email', verifyToken, async (req, res) => {
             const email = req.params.email;
             const updateInfo = req.body;
             // if status === pending . tahole return now
@@ -300,7 +337,7 @@ async function run() {
         })
 
         // Just admin change now any user status and role
-        app.patch('/updateUserRole/:email', async (req, res) => {
+        app.patch('/updateUserRole/:email', verifyToken, verifyAdmin, async (req, res) => {
             const email = req.params.email;
             const { updateRole } = req.body;
             console.log(email, updateRole)
@@ -355,14 +392,14 @@ async function run() {
 
 
         // get specific user data with id
-        app.get('/user/:email', async (req, res) => {
+        app.get('/user/:email', async (req, res) => {  // aita publick vabe get kora jabe.
             const email = req.params.email;
             const query = { userEmail: email }
             const result = await usersCollection.findOne(query);
             res.send(result)
         })
 
-    
+
 
         // get just tour guide name
         app.get('/tourGuidesName', async (req, res) => {
@@ -375,14 +412,14 @@ async function run() {
 
 
         // bloger er all data get
-        app.get('/blogs', async(req, res)=> {
+        app.get('/blogs', async (req, res) => {
             const search = req.query.search;
             let query = {};
-            if(search){
+            if (search) {
                 query.$or = [
-                    {title: {$regex: search, $options: 'i'}},
-                    {content: {$regex: search, $options: 'i'}},
-                    {userName: {$regex: search, $options: 'i'}},
+                    { title: { $regex: search, $options: 'i' } },
+                    { content: { $regex: search, $options: 'i' } },
+                    { userName: { $regex: search, $options: 'i' } },
                 ]
             }
             const result = await blogsCollection.find(query).toArray();
@@ -390,30 +427,30 @@ async function run() {
         })
 
         // bloger er 1st data get
-        app.get('/blogsFirst', async(req, res)=> {
-         
+        app.get('/blogsFirst', async (req, res) => {
+
             const result = await blogsCollection.findOne();
             res.send(result)
         })
 
         //  get specific blog data with id
-        app.get('/blog/:id', async(req, res)=> {
+        app.get('/blog/:id', async (req, res) => {
             const id = req.params.id;
-            const query = {_id: new ObjectId(id)};
+            const query = { _id: new ObjectId(id) };
             const result = await blogsCollection.findOne(query)
             res.send(result)
         })
 
         // blog a comment add korbo
-        app.patch('/blogsComment/:id', async(req, res)=> {
+        app.patch('/blogsComment/:id', verifyToken, async (req, res) => {
             const id = req.params.id;
             const commentInfo = req.body;
-          
-            const query = {_id: new ObjectId(id)};
+
+            const query = { _id: new ObjectId(id) };
             const commentsData = await blogsCollection.findOne(query);
             const comments = commentsData?.comments;
             comments.push(commentInfo)
-          
+
             const updatedDoc = {
                 $set: {
                     comments: comments
@@ -426,35 +463,71 @@ async function run() {
 
         // story section start
         // post story 
-        app.post('/storys', async(req, res)=> {
+        app.post('/storys', verifyToken, async (req, res) => {
             const storyInfo = req.body;
             const result = await storyCollection.insertOne(storyInfo);
             res.send(result)
         })
+
+
+        // update korbo post
+        app.patch('/storys/:id', verifyToken, async (req, res) => {
+            const id = req.params.id;
+            const updateInfo = req.body;
+            const query = { _id: new ObjectId(id) }
+            const updatedDoc = {
+                $set: {
+                    ...updateInfo
+                }
+            }
+            const result = await storyCollection.updateOne(query, updatedDoc)
+            res.send(result)
+        })
+
+
         // get all story 
-        app.get("/storys", async(req, res)=> {
-            const result = await storyCollection.find().toArray();
+        app.get("/storys", async (req, res) => {
+            const search = req.query.search;
+            console.log(search)
+            const query = {};
+            if (search) {
+                query.$or = [
+                    { userName: { $regex: search, $options: 'i' } },
+                    { spotTitle: { $regex: search, $options: 'i' } },
+                    { spotDescription: { $regex: search, $options: 'i' } }
+                ]
+            }
+            const result = await storyCollection.find(query).toArray();
+            res.send(result)
+        })
+
+        // get my story with email
+        app.get("/storys/:email", verifyToken, async (req, res) => {
+            const email = req.params.email;
+            const query = { userEmail: email };
+
+            const result = await storyCollection.find(query).toArray();
             res.send(result)
         })
 
         // delte a post 
-        app.delete('/deletePost/:id', async(req, res)=> {
+        app.delete('/deletePost/:id', verifyToken, async (req, res) => {
             const id = req.params.id;
-            const query = {_id: new ObjectId(id)};
+            const query = { _id: new ObjectId(id) };
             const result = await storyCollection.deleteOne(query);
             res.send(result)
         })
 
-         // story a comment add korbo
-         app.patch('/storyComment/:id', async(req, res)=> {
+        // story a comment add korbo
+        app.patch('/storyComment/:id', async (req, res) => {
             const id = req.params.id;
             const commentInfo = req.body;
-          
-            const query = {_id: new ObjectId(id)};
+
+            const query = { _id: new ObjectId(id) };
             const commentsData = await storyCollection.findOne(query);
             const comments = commentsData?.comments;
             comments.push(commentInfo)
-          
+
             const updatedDoc = {
                 $set: {
                     comments: comments
@@ -465,12 +538,73 @@ async function run() {
         })
 
 
+        // small cardStorySection
         // small cardStoryCollection er data get korbo
-          app.get("/cardStorys", async(req, res)=> {
+        app.get("/cardStorys", async (req, res) => {
             const result = await cardStoryCollection.find().toArray();
             res.send(result)
         })
 
+        // small cardStory data post korbo
+        app.post('/cardStorys', async (req, res) => {
+            const storyInfo = req.body;
+            const result = await cardStoryCollection.insertOne(storyInfo);
+            res.send(result)
+        })
+
+
+
+        // Payment intent
+        app.post('/create-payment-intent', async (req, res) => {
+            const { price } = req.body;
+            const amount = parseInt(price * 100);
+
+            const paymentIntent = await stripe.paymentIntents.create({
+                amount: amount,
+                currency: 'usd',
+                payment_method_types: ['card']
+            });
+
+            res.send({
+                clientSecret: paymentIntent.client_secret
+            })
+        })
+
+
+        // payment er infromation gulo DB te add korbo 
+        app.post('/payments', async (req, res) => {
+            const payment = req.body;
+            const paymentResult = await paymentCollection.insertOne(payment);
+
+            // carefully delete each item from the cart in db
+            console.log('Payment info', payment)
+            const query = { _id: new ObjectId(payment?.cartIds) }
+            const options = { upsert: true };
+
+            const updatedDoc = {
+                $set: {
+                    payment: "success"
+                }
+            }
+            const updateResult = await packageBookingCollection.updateOne(query, updatedDoc, options)
+
+            res.send({ paymentResult, updateResult })
+        })
+
+        // get specific card payment info
+        app.get('/paymentInfo/:id', async (req, res) => {
+            const id = req.params.id;
+            const query = { cartIds: id };
+            const result = await paymentCollection.findOne(query);
+            res.send(result)
+        })
+
+
+        // notification 
+        app.get('/notification', async(req, res)=> {
+            const result = await notificationCollection.find().toArray();
+            res.send(result)
+        })
 
 
         console.log("Pinged your deployment. You successfully connected to MongoDB!");
