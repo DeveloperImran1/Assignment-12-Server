@@ -10,7 +10,7 @@ const jwt = require('jsonwebtoken');
 
 // middleware
 app.use(cors({
-    origin: ["http://localhost:5173"],
+    origin: ["http://localhost:5173", "https://assignment-twelve-9109d.web.app", "https://6669286d5bcbed6117973b2c--frabjous-starburst-2077bc.netlify.app"],
     credentials: true
 }));
 app.use(express.json());
