@@ -6,11 +6,11 @@ const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
 const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY)
 const port = process.env.PORT || 5000;
 const jwt = require('jsonwebtoken');
-
+const nodemailer = require("nodemailer");
 
 // middleware
 app.use(cors({
-    origin: ["http://localhost:5173", "https://assignment-twelve-9109d.web.app", "https://6669286d5bcbed6117973b2c--frabjous-starburst-2077bc.netlify.app"],
+    origin: ["http://localhost:5173", "https://assignment-twelve-9109d.web.app", "https://touristbook.netlify.app"],
     credentials: true
 }));
 app.use(express.json());
@@ -59,32 +59,73 @@ async function run() {
 
 
         // use verify admin after verify token
-        const verifyAdmin = async (req, res, next)=> {
+        const verifyAdmin = async (req, res, next) => {
             const email = req.decoded.email;
             console.log(email)
-            const query = {userEmail: email};
+            const query = { userEmail: email };
             const user = await usersCollection.findOne(query);
             console.log(user)
             const isAdmin = user?.userRole === "Admin"
-            if(!isAdmin){
-                return res.status(403).send({message: 'forbidden access'})
+            if (!isAdmin) {
+                return res.status(403).send({ message: 'forbidden access' })
             }
             next()
         }
 
         // use verify tour Guide after verify token
-        const verifyTourGuide = async (req, res, next)=> {
+        const verifyTourGuide = async (req, res, next) => {
             const email = req.decoded.email;
             console.log(email)
-            const query = {userEmail: email};
+            const query = { userEmail: email };
             const user = await usersCollection.findOne(query);
             console.log(user)
             const isTourGuide = user?.userRole === "tourGuide"
-            if(!isTourGuide){
-                return res.status(403).send({message: 'forbidden access'})
+            if (!isTourGuide) {
+                return res.status(403).send({ message: 'forbidden access' })
             }
             next()
         }
+
+
+        // send email 
+        const sendEmail = (emailAddress, emailData) => {
+            const transPorter = nodemailer.createTransport({
+                service: 'gmail',
+                host: 'smtp.gmail.com',
+                port: 587,
+                secure: false,
+                auth: {
+                    user: process.env.TRANSPORTER_EMAIL,
+                    pass: process.env.TRANSPORTER_PASS
+                }
+            })
+
+            // verify transporter
+            transporter.verify(function (err, success) {
+                if (err) {
+                    console.log(err)
+                }
+                else {
+                    console.log('Server is Ready to take our email')
+                }
+            })
+
+            const mailBody = {
+                from: `"TouristBook" <${process.env.TRANSPORTER_EMAIL}>`,
+                to: emailAddress,
+                subject: emailData.subject,
+                html: emailData.message
+            }
+
+            transporter.sendMail(mailBody, (error, info) => {
+                if (error) {
+                    console.log(error)
+                } else {
+                    console.log('Email Sent: ' + info.response)
+                }
+            })
+        }
+
 
 
         const spotsCollection = client.db("tourism").collection('touristSpots');
@@ -125,7 +166,7 @@ async function run() {
             const result = await spotsCollection.findOne(query);
             res.send(result)
         })
- 
+
 
         // get spots with search, filter, sorting price range
         app.get('/allSpots', async (req, res) => {
@@ -191,7 +232,7 @@ async function run() {
             console.log(bookingInfo.email)
             // user er email dia total booking length up korbo
             const query = { userEmail: bookingInfo.email }
-            const options ={ upsert: true}
+            const options = { upsert: true }
             let totalBooking = 1;
             const currentUser = await usersCollection.findOne(query)
             console.log(currentUser)
@@ -253,7 +294,7 @@ async function run() {
         })
 
         // get all booking length specific user 
-        app.get('/myTotalBookings/:email',verifyToken, async (req, res) => {
+        app.get('/myTotalBookings/:email', verifyToken, async (req, res) => {
             const email = req.params.email;
             const query = { email: email };
             const result = await packageBookingCollection.countDocuments(query);
@@ -261,7 +302,7 @@ async function run() {
         })
 
         // get all tourist length 
-        app.get('/allTouristLen', verifyToken, verifyAdmin,  async (req, res) => {
+        app.get('/allTouristLen', verifyToken, verifyAdmin, async (req, res) => {
             const query = { userRole: "Tourist" };
             const result = await usersCollection.countDocuments(query);
             res.send({ result })
@@ -282,14 +323,22 @@ async function run() {
 
         // newUserAdd DB
         app.post('/users', async (req, res) => {
-            const userInfo = req.body;
+            const userInfo = req?.body;
+            console.log("userInfo", userInfo)
             // check now. If user already exist than return now . Otherwise add now
-            const query = { userEmail: userInfo.userEmail }
+            const query = { userEmail: userInfo?.userEmail }
             const isExist = await usersCollection.findOne(query);
             if (isExist) {
                 return res.send({ message: "This user already exist in DB", insertedId: null })
             }
             const result = await usersCollection.insertOne(userInfo)
+
+            // send email to user
+            sendEmail(userInfo?.userEmail, {
+                subject: `Wellcome ${userInfo?.userName}`,
+                message: `Lets start more enjoy and efectivly social media platform.`,
+            })
+
             res.send(result)
         })
 
@@ -298,7 +347,8 @@ async function run() {
         app.get('/users', async (req, res) => {
             const filterRole = req.query.filterValue;
             const searchValue = req.query.searchValue;
-            console.log(filterRole, searchValue)
+            const page = req.query.page
+            console.log(page)
             let query = {};
             if (filterRole) {
                 query.userRole = filterRole
@@ -307,8 +357,14 @@ async function run() {
                 query.userName = { $regex: searchValue, $options: 'i' }
             }
 
-            const result = await usersCollection.find(query).toArray();
+            const result = await usersCollection.find(query).skip(page * 10).limit(10).toArray();
             res.send(result)
+        })
+
+        // get all users length 
+        app.get("/userLen", async (req, res) => {
+            const count = await usersCollection.estimatedDocumentCount();
+            res.send({ count })
         })
 
         // When user request become a tourGuide
@@ -414,6 +470,7 @@ async function run() {
         // bloger er all data get
         app.get('/blogs', async (req, res) => {
             const search = req.query.search;
+            const page = parseInt(req.query.page);
             let query = {};
             if (search) {
                 query.$or = [
@@ -422,8 +479,14 @@ async function run() {
                     { userName: { $regex: search, $options: 'i' } },
                 ]
             }
-            const result = await blogsCollection.find(query).toArray();
+            const result = await blogsCollection.find(query).skip(page * 9).limit(9).toArray();
             res.send(result)
+        })
+
+        // get totalBlogs count
+        app.get('/blogsCount', async (req, res) => {
+            const count = await blogsCollection.estimatedDocumentCount();
+            res.send({ count })
         })
 
         // bloger er 1st data get
@@ -601,7 +664,7 @@ async function run() {
 
 
         // notification 
-        app.get('/notification', async(req, res)=> {
+        app.get('/notification', async (req, res) => {
             const result = await notificationCollection.find().toArray();
             res.send(result)
         })
