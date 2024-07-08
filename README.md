@@ -32,12 +32,12 @@ Visit the live site at [TouristBook Live](https://touristbook.netlify.app/)
 1. **Clone the Repositories:**
     ```sh
     # Client Side:
-    git clone https://github.com/DeveloperImran1/Assignment-12-Client.git
+    git clone https://github.com/DeveloperImran1/TouristBook-client.git
     cd Assignment-11-Client
     ```
     ```sh
     # Server Side:
-    git clone https://github.com/DeveloperImran1/Assignment-12-Server.git
+    git clone https://github.com/DeveloperImran1/TouristBook-Server.git
     cd Assignment-12-Server
     ```
 2. **Install Dependencies:**
@@ -58,7 +58,7 @@ Visit the live site at [TouristBook Live](https://touristbook.netlify.app/)
     ```
 
 ## Client Side Github Link:
-<a href="https://github.com/DeveloperImran1/Assignment-11-client">Client Code</a>
+<a href="https://github.com/DeveloperImran1/TouristBook-client">Client Code</a>
 
 ## Dependencies
 
